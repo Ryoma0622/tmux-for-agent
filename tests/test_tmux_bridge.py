@@ -1,14 +1,26 @@
+# /// script
+# requires-python = ">=3.10"
+# dependencies = []
+# ///
 """
 Unit tests for tmux_bridge.TmuxController.
 
 These tests mock subprocess.run so they can run without a real tmux server.
+
+    uv run tests/test_tmux_bridge.py
 """
 
 from __future__ import annotations
 
 import subprocess
+import sys
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, call, patch
+
+# Ensure the project root is on sys.path so `import tmux_bridge` works
+# regardless of which directory the script is launched from.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from tmux_bridge import (
     CommandTimeoutError,

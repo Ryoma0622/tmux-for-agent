@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.10"
+# dependencies = []
+# ///
 """
 Example: An AI Agent using TmuxController to execute commands on a
 human-authenticated tmux session.
@@ -12,7 +16,7 @@ Prerequisites
        ssh user@remote-host
 
 3. Run this script from Terminal A:
-       python3 example_agent.py
+       uv run example_agent.py
 
 The script will:
   - Connect to the 'myserver' tmux session
