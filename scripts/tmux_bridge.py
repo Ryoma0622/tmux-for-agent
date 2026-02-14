@@ -247,16 +247,29 @@ class TmuxController:
         start_marker = f"__TMUX_BRIDGE_START_{uid}__"
         end_marker = f"__TMUX_BRIDGE_END_{uid}__"
 
-        # Send: start marker → command → end marker
+        # Send start marker and wait until it actually appears in the buffer
+        # before sending the command.
         self.send_keys(f"echo '{start_marker}'", enter=True)
-        # Small pause so the marker echo appears before the command
-        time.sleep(0.05)
-        self.send_keys(command, enter=True)
-        # We chain the end marker after the command finishes via shell &&/;
-        # But since we can't chain reliably (the command might fail), we
-        # send the end-marker echo as a separate command.  The shell will
-        # execute it after the previous command returns.
-        self.send_keys(f"echo '{end_marker}'", enter=True)
+
+        marker_deadline = time.monotonic() + timeout
+        while time.monotonic() < marker_deadline:
+            buf = self.read_buffer(history=True)
+            if start_marker in buf:
+                break
+            time.sleep(interval)
+        else:
+            raise CommandTimeoutError(
+                f"Start marker did not appear within {timeout}s"
+            )
+
+        # Chain the command and the end-marker echo in a single send_keys
+        # call using ` ; ` so the shell executes the end-marker echo only
+        # after the command finishes.  Sending them separately would cause
+        # the end-marker echo to be queued in the terminal input buffer and
+        # appear interleaved with the command's output.
+        self.send_keys(
+            f"{command} ; echo '{end_marker}'", enter=True
+        )
 
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
@@ -330,7 +343,7 @@ class TmuxController:
             stripped = line.strip()
             # Strip prompt prefix for comparison purposes
             without_prompt = prompt_prefix_re.sub("", stripped)
-            # Skip the echo commands for markers
+            # Skip the echo commands for markers (full or partial line)
             if without_prompt.startswith("echo '__TMUX_BRIDGE_"):
                 continue
             # Skip the echoed command (with or without prompt prefix)
@@ -344,6 +357,10 @@ class TmuxController:
 
         # Strip leading/trailing empty lines
         text = "\n".join(cleaned).strip()
+        # Remove a trailing partial echo line that may remain when the
+        # end-marker string is found inside its own echo command line in
+        # the buffer (e.g. a trailing "echo '" fragment).
+        text = re.sub(r"\necho\s+['\"]?\s*$", "", text)
         # Also remove the prompt line at the end if present
         return text
 
